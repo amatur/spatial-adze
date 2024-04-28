@@ -1,0 +1,19 @@
+CC=g++-13
+G++FLAG= -std=c++17
+# -Ofast  -m64  -ftree-vectorize 
+#-g
+
+all : color
+
+color : color.o  
+	$(CC) $(G++FLAG) -o color color.o 
+
+color.o : color.hpp
+	$(CC) $(G++FLAG) -c color.hpp 
+
+.PHONY: make_directories
+make_directories:
+	mkdir -p ../bin/
+
+clean:
+	rm -rf *.o color

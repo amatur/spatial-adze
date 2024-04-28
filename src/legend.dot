@@ -1,0 +1,20 @@
+digraph Circle{
+rankdir=LR;
+
+node [shape=square, width=0.2, height=0.2, fontsize=12];
+edge [style="invis"];
+
+a0 [label="0.0", style="filled", fillcolor="#0000ff", color="black" ];
+a1 [label="4.0", style="filled", fillcolor="#2a00d4", color="black" ];
+a2 [label="8.0", style="filled", fillcolor="#5500aa", color="black" ];
+a3 [label="12.0", style="filled", fillcolor="#7f007f", color="black" ];
+a4 [label="16.0", style="filled", fillcolor="#aa0055", color="black" ];
+a5 [label="20.0", style="filled", fillcolor="#d4002a", color="black" ];
+a6 [label="24.0", style="filled", fillcolor="#ff0000", color="black" ];
+a0-> a1 [label=""];
+a1-> a2 [label=""];
+a2-> a3 [label=""];
+a3-> a4 [label=""];
+a4-> a5 [label=""];
+a5-> a6 [label=""];
+}
