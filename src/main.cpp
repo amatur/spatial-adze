@@ -85,7 +85,7 @@ void writeOutputPoplars(string geofile, GridChar& gridChar, vector<Div>& divs)
         double x = std::stod(col2);
         double y = std::stod(col3);
         int gridno = gridChar.getGridNo(x, y);
-        if(gridno !=-1){
+        if(gridno !=-1 && divs[gridno].mean_alpha!=0){
             // Append "10" as the fourth column
             std::string newLine = col1 + "\t" + col2 + "\t" + col3 + "\t" + std::to_string(divs[gridno].mean_alpha) +"\n";
 
@@ -122,6 +122,10 @@ void adze_main(string vcffile, string geofile, int g){
 
     Div d;
     int numSnps = 0;
+    int numHaps = 0;
+
+    bool haplotype = false;
+    int haplen = 1;
 
     //readAllelesFromVCF(vcffile);
     //readVCF(vcffile, d.Nis);
@@ -132,9 +136,12 @@ void adze_main(string vcffile, string geofile, int g){
     geofile = "/Users/amatur/code/spatial-data/poplars/poplars_llhap.txt";
     GridChar gridChar(-150, -110, 40, 70,8);
     vector<Div> divs(gridChar.numGrids);    
-    read_poplars(vcffile, gridChar, divs, numSnps);
 
-
+    if(haplotype){
+        read_poplars_haplotype(vcffile, gridChar, divs, numSnps, numHaps);
+    }else{
+        read_poplars(vcffile, gridChar, divs, numSnps, numHaps);
+    }
 
     cout << "ADZE!!" << endl;
     cout << "vcf: " << vcffile << endl;
@@ -154,7 +161,9 @@ void adze_main(string vcffile, string geofile, int g){
     vector<Div> divs(gridChar.numGrids);//0-24
     read012(geofile, vcffile, gridChar, divs, numSnps);
     */
-    
+
+
+    /* 
     vector<double> sum_log_qs; //size = I
     int numDivs;
     int I = 3;
@@ -166,19 +175,63 @@ void adze_main(string vcffile, string geofile, int g){
             sum_log_qs[i] += log(qs[i][j]);
         }   
     }
+    */
 
+    int max_maxg = numHaps;
+    // for (int i = 0; i < gridChar.numGrids; i++){
+    //      if(divs[i].N >= 2){
+    //         if(haplotype){
+    //             int s = 0;
+    //             for(int x = 0; x < numSnps; x=x+haplen){
+    //                 if(divs[i].get_maxg_per_loci(s) < max_maxg){
+    //                         max_maxg = divs[i].get_maxg_per_loci(s); 
+    //                 }
+    //                 s++;
+    //             }
 
+    //         }else{
+    //             for(int s = 0; s < numSnps; s++){
+    //                 if(divs[i].get_maxg_per_loci(s) < max_maxg){
+    //                         max_maxg = divs[i].get_maxg_per_loci(s); 
+    //                 }
+    //             }
+    //         }
+            
+    //      }
+    //      cout<<i<<" maxg: "<<max_maxg<<endl;
+    // }
+    
+    max_maxg =2 ;
     //print all element of d.Nis
     for (int i = 0; i < gridChar.numGrids; i++){
-        if(divs[i].N >= 5){
+        divs[i].gridNo = i;
+        if(divs[i].N >= 2){
             double alphasum = 0;
-            for(int s=0; s<numSnps; s++){
-                alphasum+= divs[i].compute_alpha(s);
-            }
-            alphasum/=numSnps*1.0;
-            divs[i].mean_alpha = alphasum;
 
-            cout<<i<<":"<<divs[i].N << " "<<divs[i].compute_alpha(10)<< " "<<alphasum<<endl;
+            
+            if(haplotype){
+                int s = 0;
+                for(int x=0; x<numSnps; x=x+haplen){
+                    if(i==28 && s<10)
+                        cout<<divs[i].compute_alpha(s, max_maxg)<<" ";
+                    alphasum+= divs[i].compute_alpha(s, max_maxg);
+                    s++;
+                }
+                
+                alphasum/=s*1.0;
+            }else{  
+                for(int s=0; s<numSnps; s++){
+                    if(i==28 && s<10)
+                        cout<<divs[i].compute_alpha(s, max_maxg)<<" ";
+                    alphasum+= divs[i].compute_alpha(s, max_maxg);
+                }
+                alphasum/=numSnps*1.0;
+            }
+
+            divs[i].mean_alpha = alphasum;
+            
+
+            cout<<i<<":"<<divs[i].N << " "<<divs[i].compute_alpha(10)<< " " <<alphasum<<endl;
         }
     }
 

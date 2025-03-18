@@ -232,10 +232,33 @@ class Graphviz{
             for (int j = grid_size-1; j >=0; j--) {
                 (*fout) << "{ rank=same; ";
                 for (int i = 0; i < grid_size; i++) {
-                    (*fout) << "X" << i <<"Y"<< j << "; ";
+                    (*fout) << "X" << j <<"Y"<< i << "; ";
                 }
                 (*fout) << "}" << endl;
             }
+
+
+            //X0Y0--X1Y0--X2Y0--X3Y0--X4Y0--X5Y0--X6Y0--X7Y0
+            //X0Y1--X1Y1--X2Y1--X3Y1--X4Y1--X5Y1--X6Y1--X7Y1
+            for (int j = grid_size-1; j >=0; j--) {
+                for (int i = 0; i < grid_size-1; i++) {
+                    (*fout) << "X" << i <<"Y"<< j << "--";
+                }
+                (*fout) << "X" << grid_size-1 <<"Y"<< j ;
+                (*fout)  << endl;
+            }
+
+            //to align ys node [group="samex0"]  // try to keep same Y value
+            // X0Y0 X0Y1 X0Y2 X0Y3 
+            for (int j = grid_size-1; j >=0; j--) {
+                (*fout) << "node [group=\""<<"samex"<<j<<"\"]"<<endl;
+                for (int i = 0; i < grid_size-1; i++) {
+                    (*fout) << "X" << j <<"Y"<< i << " ";
+                }
+                (*fout) << "X" << j <<"Y"<< grid_size-1;
+                (*fout)  << endl;
+            }
+
 
 
             double min_v =  static_cast<double>(*(std::min_element(v_mean_alpha.begin(), v_mean_alpha.end())));
@@ -248,14 +271,14 @@ class Graphviz{
                     //string colorhex = "#FF0000";
                     if(getGridValue(i,j,grid_size, v_count) ==0){
                         string colorhex = "#ffffff";
-                        (*fout)<< "X" << i <<"Y"<< j << " [label=\"" << "" <<  "\", fillcolor=\""<< colorhex <<"\"]"<<endl;
+                        (*fout)<< "X" << i <<"Y"<< j << " [label=\"" << "" <<  "\", fillcolor=\""<< colorhex <<"\""<< ",pos=\"" << i<<","<<j  <<"!\"]"<<endl;
                     }else{
                         stringstream ss;
                         ss << std::fixed << std::setprecision(0) << getGridValue(i,j,grid_size, v_count) << ","<< std::fixed << std::setprecision(1) << getGridValue(i,j,grid_size, v_mean_alpha);
                         string strprint = ss.str();
                         //= to_string(getGridValue(i,j,grid_size, v_mean_alpha)) +" =N"+ to_string(getGridValue(i,j,grid_size, v_count));
                         string colorhex = Color::get_color_from_value(getGridValue(i,j,grid_size, v_mean_alpha), min_v, max_v).rgbToHex();
-                        (*fout)<< "X" << i <<"Y"<< j << " [label=\"" <<  strprint <<  "\", fillcolor=\""<< colorhex <<"\"]"<<endl;
+                        (*fout)<< "X" << i <<"Y"<< j << " [label=\"" <<  strprint <<  "\", fillcolor=\""<< colorhex <<"\""<< ",pos=\"" << i<<","<<j  <<"!\"]"<<endl;
                     }
                     
                 }

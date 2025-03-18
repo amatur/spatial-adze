@@ -76,14 +76,21 @@ class Div{
     int gridNo;
     //int gridX;
     //int gridY;
+
+    int numSnps;
     bool turnoff = false;
     double mean_alpha = 0;
     int N = 0; // number of individuals in this div, i.e. grid
+
+
+    vector<map<string, int> > haplotype_map;
     vector<vector<int> > Nis_per_loci; // let N=18, type 0: 10 type 1: 5, type 2: 3, 3: missing sum should be N=18; //allele counts
+    //potential renaming: sample_sizes_grouped_by_I
+    
     // void getNeighbors(){
     //     //(x+1, y); // if not empty, add to neighbor list
     // }
-    
+
     unsigned nChoosek( unsigned n, unsigned k )
     {
         if (k > n) return 0;
@@ -95,7 +102,25 @@ class Div{
             result *= (n-i+1);
             result /= i;
         }
+
         return result;
+    }
+
+
+    double nChoosek_by_mChoosek( unsigned n, unsigned m, unsigned k )
+    {
+        //this is the Q
+
+        //loop to sum from log n to log (n-8)
+        //write a for loop to sum from (log n) to (log n-8)
+        double total = 0;
+        for (unsigned i = 0; i <= (k-1); i++) {
+            //cout<<log(1.0*(n-i)/(m-i))<<" l" << n << " " << m<<endl;
+            total += log(1.0*(n-i)/(m-i));
+            
+        }
+        //cout<<total<<" T" <<endl;
+        return exp(total);
     }
 
     //assume qs, Nis are already computed
@@ -122,18 +147,68 @@ class Div{
             qs[i][gridNo] = (nChoosek(N-Nis[i],g)*1.0/nChoosek(N,g));
             sum += 1 - qs[i][gridNo];
         }
+        if(sum < 0) 
         return sum;
     }
+
+    int get_maxg_per_loci(int loci){
+        // I = 0; //number of distinct alleles
+        int max_g = 0; //number of indiviuals (non-missing)
+        cout<<"loci: "<< loci <<"size: "<<Nis_per_loci[loci].size()<<endl;
+
+        if(Nis_per_loci[loci].size()!=0){
+            for(int i = 0; i<Nis_per_loci[loci].size()-1; i++){ //0 1 2 3-missing; exclude missing
+                if(Nis_per_loci[loci][i] > 0){
+                    max_g += Nis_per_loci[loci][i];
+                }
+            }
+        }
+        
+        return max_g;
+    }
+
     //allelic richness
     double compute_alpha(int loci, int g=5){
-        //sum over all p_ig's
-        int I = Nis_per_loci[loci].size() - 1;
+
+        int N_j = 0; //sample size at locus loci on this grid
+        // cout<<loci<<" >";
+        // cout<<loci<< " "<<Nis_per_loci[loci].size()<<endl;
+        // if(Nis_per_loci.size()<loci+1)
+        //     return 0;
+        for(int i = 0; i<Nis_per_loci[loci].size()-1; i++){ //0 1 2 3-missing; exclude missing
+            if(Nis_per_loci[loci][i] > 0){
+                N_j += Nis_per_loci[loci][i];
+            }
+        }
+        
+        
+
+        //int maxg = get_maxg_per_loci(loci);
+
+        //compute p_ig
         vector<int> Nis = Nis_per_loci[loci];
         double sum = 0;
-        for(int i = 0; i<I; i++){
-            //compute p_ig
-            sum += 1 - (nChoosek(N-Nis[i],g)*1.0/nChoosek(N,g));
+        for(int i = 0; i<Nis_per_loci[loci].size()-1; i++){
+            // if(gridNo == 28){
+            //     cout<<"for 28 N_jis: "<<i << " " << Nis[i] << endl;
+                
+            // }
+            if(Nis_per_loci[loci][i] > 0){ 
+                double q = (nChoosek(N_j-Nis[i],g)*1.0/nChoosek(N_j,g));
+                if(q>1 or q<0){
+                    //cout<<"HELLO old "<< q << endl;
+                    q = nChoosek_by_mChoosek(N_j-Nis[i],N_j, g);
+                     //cout<<"HELLO new"<< q << endl;
+                }
+
+                sum += 1 - q;
+                //cout<< 1 - q <<endl;
+            }
+            
         }
+        // if(gridNo == 28){
+        //     exit(1);
+        // }
         return sum;
     }
 };

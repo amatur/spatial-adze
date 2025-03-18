@@ -1,7 +1,7 @@
 CC=g++-13
 #CFLAGS= -Ofast  -m64  -ftree-vectorize -mmmx -msse -msse2
-G++FLAG= -std=c++17 -Ofast  -m64  -ftree-vectorize 
-#-g
+G++FLAG= -std=c++17  -g
+#G++FLAG= -std=c++17 -Ofast  -m64  -ftree-vectorize -g
 #-pthread -fopenmp  
 # SRC_DIR := ./
 # OBJ_DIR := ./

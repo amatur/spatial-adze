@@ -62,7 +62,7 @@ int countFields(string& str)
 /***
  * biallelic read
  */
-void read_poplars(string variantfilename, GridChar &gridChar, vector<Div> &divs, int &numSnps)
+void read_poplars(string variantfilename, GridChar &gridChar, vector<Div> &divs, int &numSnps, int &numHaps)
 {
     // for(map<string,int>::iterator it = Nis_map.begin(); it != Nis_map.end(); it++){
     //     Nis.push_back(it->second);
@@ -81,7 +81,7 @@ void read_poplars(string variantfilename, GridChar &gridChar, vector<Div> &divs,
     // cout<<line<<endl;
 
     numSnps = countFields(line) - 3;
-    int numHaps = 0;
+    numHaps = 0;
     // Nis.resize(numSnps);
     //  for(int i = 0; i<numSnps; i++){
     //     Nis[i].resize(4);
@@ -181,6 +181,156 @@ void read_poplars(string variantfilename, GridChar &gridChar, vector<Div> &divs,
         {
             cout << "grid " << i << ":" << divs[i].N << " " << divs[i].Nis_per_loci[10][0] << " " << divs[i].Nis_per_loci[sampleloci][1] << " " << divs[i].Nis_per_loci[sampleloci][0] << " " << divs[i].Nis_per_loci[sampleloci][3] << endl;
         }
+    }
+}
+
+
+// poplars_llhap.txt
+/***
+ * biallelic read
+ */
+void read_poplars_haplotype(string variantfilename, GridChar &gridChar, vector<Div> &divs, int &numSnps, int &numHaps)
+{
+     
+    ifstream vcfFile;
+    vcfFile.open(variantfilename.c_str());
+    if (vcfFile.fail())
+    {
+        cerr << "Error: Unable to open file " << variantfilename << endl;
+        return;
+    }
+
+    string line;
+    getline(vcfFile, line);
+    // cout<<line<<endl;
+
+    numSnps = countFields(line) - 3;
+    numHaps = 0;
+    // Nis.resize(numSnps);
+    //  for(int i = 0; i<numSnps; i++){
+    //     Nis[i].resize(4);
+    //     Nis[i][0] = 0;
+    //     Nis[i][1] = 0;
+    //     Nis[i][2] = 0;
+    //     Nis[i][3] = 0;
+
+    //  }
+
+    do
+    {
+        stringstream ss(line);
+
+        string allele;
+        int id; //drainage
+        double x = -100;
+        double y = -100;
+        ss >> id >> x >> y;
+        // cout<< id << " " << x << " " << y << endl;
+        if (x >= gridChar.min_x && x <= gridChar.max_x && y >= gridChar.min_y && y <= gridChar.max_y)
+        //if(true)
+        {
+
+            int gridno = gridChar.getGridNo(x, y);
+            if (false)
+                cout << id << " " << x << " " << y << " " << " " << gridno << " ";
+
+            divs[gridno].gridNo = gridno;
+            divs[gridno].N++;
+            vector<map<string, int> >& haplotype_map = divs[gridno].haplotype_map;
+
+            numHaps++;
+
+            // if (divs[gridno].Nis_per_loci.size() != numSnps)
+            // {
+            //     divs[gridno].Nis_per_loci.resize(numSnps);
+            // }
+
+            //ss >> allele; // skip : read the entry
+
+            //if (false)
+            //    cout << allele << endl; // the sample id that is in grid
+
+            int haplen = 1;
+            int vectoridx = 0;
+            for (int i = 0; i < numSnps; i=i+haplen)
+            {
+                if(haplotype_map.size() < vectoridx+1)
+                    haplotype_map.push_back(map<string, int>());
+
+
+                allele = "";
+                for (int a = 0; a < haplen; a++){
+                    string achar;
+                    ss >> achar;
+                    allele+=achar;
+                }
+
+                // allele.resize( haplen );
+                // ss.read( &allele[0], haplen );
+                //cout<<"sl "<<allele<<endl;
+                if (haplotype_map[vectoridx].find(allele) == haplotype_map[vectoridx].end())
+                {
+                    haplotype_map[vectoridx][allele] = 1;
+                }
+                else
+                {
+                    haplotype_map[vectoridx][allele]++;
+                }
+
+                vectoridx++;
+            }
+        }
+        else
+        {
+            // for(int i = 0; i<numSnps; i++){
+            //     ss >> allele; //skip
+            // }
+        }
+    } while (getline(vcfFile, line));
+
+    vcfFile.close();
+    // do the Nis again; filter max missing
+
+    for (int i = 0; i < gridChar.numGrids; i++)
+    {   
+        if (divs[i].N < 8)
+            continue;
+        //cout<< "grid "<< i << " "<<divs[i].haplotype_map.size() <<endl;;
+
+        divs[i].Nis_per_loci.resize(divs[i].haplotype_map.size());
+        //iterate through the map haplotype_map
+        for (int j = 0; j < divs[i].haplotype_map.size(); j++)
+        {
+                
+            for (map<string, int>::iterator it = divs[i].haplotype_map[j].begin(); it != divs[i].haplotype_map[j].end(); it++)
+            {
+                //cout << "grid "<< i << " "<< j << ":" << it->first << " " << it->second << endl;
+                divs[i].Nis_per_loci[j].push_back(it->second);
+
+            }
+            // cout<<divs[i].Nis_per_loci[j].size()<<endl;
+        }
+       
+        
+        // // if (divs[gridno].Nis_per_loci.size() != numSnps)
+        // //     {
+        // //         divs[gridno].Nis_per_loci.resize(numSnps);
+        // //     }
+
+        // if (divs[i].N < 5)
+        // {
+        //     divs[i].turnoff = true;
+        // }
+        // int sampleloci = 100;
+        // if (divs[i].N != 0)
+        // {
+        //     cout << "grid " << i << ":" << divs[i].N << " " << divs[i].Nis_per_loci[10][0] << " " << divs[i].Nis_per_loci[sampleloci][1] << " " << divs[i].Nis_per_loci[sampleloci][0] << " " << divs[i].Nis_per_loci[sampleloci][3] << endl;
+        // }
+    }
+
+    for (int i = 0; i < gridChar.numGrids; i++)
+    {   
+        divs[i].haplotype_map.clear();
     }
 }
 
