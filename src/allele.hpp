@@ -1,33 +1,44 @@
 #include<vector>
 #include <bits/stdc++.h>
+#include "binom.h"
 using namespace std;
 
-class GridChar{
+
+
+// Class to partition a 2D space into a uniform grid of size a x a
+class GridChar {
     public:
-        int a;
-        int numGrids ;
-        double min_x;
-        double max_x;
-        double min_y;
-        double max_y;
-        GridChar(double min_x, double max_x, double min_y, double max_y, int a = 5){
-            this->min_x = min_x;
-            this->max_x = max_x;
-            this->min_y = min_y;
-            this->max_y = max_y;
-            this->a = a;
-            numGrids = a*a; //ax*ay if not square
+    int a;              // Number of divisions per axis (grid size) //// Number of cells per axis
+    int totalCells;       // Total number of grids (a * a)
+    double min_x;       // Minimum x-coordinate of the grid
+    double max_x;       // Maximum x-coordinate of the grid
+    double min_y;       // Minimum y-coordinate of the grid
+    double max_y;       // Maximum y-coordinate of the grid
+
+    // Constructor to initialize the grid boundaries and grid size (default a = 5)
+    GridChar(double min_x, double max_x, double min_y, double max_y, int a = 5)
+        : min_x(min_x), max_x(max_x), min_y(min_y), max_y(max_y), a(a) 
+    {
+        totalCells = a * a;  // Total number of grid cells (assuming square grid)
+    }
+
+    // Function to get the grid cell number for a point (x, y)
+    // Returns -1 if the point is outside the grid boundaries
+    int getGridNo(double x, double y) {
+        if (x < min_x || x > max_x || y < min_y || y > max_y) {
+            return -1;  // Out of bounds
         }
-        int getGridNo(double x, double y){
-            if(x<min_x || x>max_x || y<min_y || y>max_y){
-                return -1;
-            }
-            int gx = (x - min_x)/(max_x - min_x)*a;
-            int gy = (y - min_y)/(max_y - min_y)*a;
-            return gx + a*gy;
-        }
-        
+
+        // Compute grid coordinates (gx, gy) for the point
+        int gx = (x - min_x) / (max_x - min_x) * a;
+        int gy = (y - min_y) / (max_y - min_y) * a;
+
+        // Flatten 2D grid coordinates to a single grid number
+        return gx + a * gy;
+    }
 };
+    
+
 class Point{
     public:
         //GridChar gridChar;
@@ -71,6 +82,7 @@ class Sample{
     }
 };
 
+
 class Div{
     public:
     int gridNo;
@@ -82,7 +94,6 @@ class Div{
     double mean_alpha = 0;
     int N = 0; // number of individuals in this div, i.e. grid
 
-
     vector<map<string, int> > haplotype_map;
     vector<vector<int> > Nis_per_loci; // let N=18, type 0: 10 type 1: 5, type 2: 3, 3: missing sum should be N=18; //allele counts
     //potential renaming: sample_sizes_grouped_by_I
@@ -93,9 +104,15 @@ class Div{
 
     unsigned nChoosek( unsigned n, unsigned k )
     {
+        
+
         if (k > n) return 0;
         if (k * 2 > n) k = n-k;
         if (k == 0) return 1;
+
+        return int(nCk(n, k));
+
+        //------------------
 
         int result = n;
         for( int i = 2; i <= k; ++i ) {
@@ -109,6 +126,7 @@ class Div{
 
     double nChoosek_by_mChoosek( unsigned n, unsigned m, unsigned k )
     {
+        return nCk(n, k) / nCk(m, k);
         //this is the Q
 
         //loop to sum from log n to log (n-8)
@@ -123,11 +141,16 @@ class Div{
         return exp(total);
     }
 
+    // double nChoosek_by_mChoosek_zps( unsigned n, unsigned m, unsigned k )
+    // {
+    //     return nCk(n, k) / nCk(m, k);
+    // }
+
+
     //assume qs, Nis are already computed
     double compute_pi(int g, int loci, const vector<vector<int> >& qs, vector<double>& sum_log_qs){
         //sum over all p_ig's
         int I = Nis_per_loci[loci].size() - 1;
-
         double sum = 0;
         for(int i = 0; i<I; i++){
             //compute p_ig
@@ -137,9 +160,10 @@ class Div{
     }
 
     //allelic richness, populate qs
+    // Nij as the number of copies of allele type i in a sample from population j.
     double compute_alpha(int g, vector<vector<int> >& qs, int loci){
         //sum over all p_ig's
-        int I = Nis_per_loci[loci].size() - 1;
+        int I = Nis_per_loci[loci].size() - 1; // I: number of distinct alleles
         vector<int> Nis = Nis_per_loci[loci];
         double sum = 0;
         for(int i = 0; i<I; i++){
@@ -168,32 +192,31 @@ class Div{
     }
 
     //allelic richness
-    double compute_alpha(int loci, int g=5){
+    double compute_alpha(int loc, int g=5){
 
-        int N_j = 0; //sample size at locus loci on this grid
+        int N_j = 0; //sample size at locus loc on this grid
         // cout<<loci<<" >";
         // cout<<loci<< " "<<Nis_per_loci[loci].size()<<endl;
         // if(Nis_per_loci.size()<loci+1)
         //     return 0;
-        for(int i = 0; i<Nis_per_loci[loci].size()-1; i++){ //0 1 2 3-missing; exclude missing
-            if(Nis_per_loci[loci][i] > 0){
-                N_j += Nis_per_loci[loci][i];
+
+        for(int i = 0; i<Nis_per_loci[loc].size()-1; i++){ //0 1 2 3-missing; exclude missing
+            if(Nis_per_loci[loc][i] > 0){
+                N_j += Nis_per_loci[loc][i];
             }
         }
         
-        
-
         //int maxg = get_maxg_per_loci(loci);
 
         //compute p_ig
-        vector<int> Nis = Nis_per_loci[loci];
+        vector<int> Nis = Nis_per_loci[loc];
         double sum = 0;
-        for(int i = 0; i<Nis_per_loci[loci].size()-1; i++){
+        for(int i = 0; i<Nis_per_loci[loc].size()-1; i++){
             // if(gridNo == 28){
             //     cout<<"for 28 N_jis: "<<i << " " << Nis[i] << endl;
                 
             // }
-            if(Nis_per_loci[loci][i] > 0){ 
+            if(Nis_per_loci[loc][i] > 0){ 
                 double q = (nChoosek(N_j-Nis[i],g)*1.0/nChoosek(N_j,g));
                 if(q>1 or q<0){
                     //cout<<"HELLO old "<< q << endl;

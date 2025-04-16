@@ -170,7 +170,7 @@ void read_poplars(string variantfilename, GridChar &gridChar, vector<Div> &divs,
     vcfFile.close();
     // do the Nis again; filter max missing
 
-    for (int i = 0; i < gridChar.numGrids; i++)
+    for (int i = 0; i < gridChar.totalCells; i++)
     {
         if (divs[i].N < 5)
         {
@@ -291,7 +291,7 @@ void read_poplars_haplotype(string variantfilename, GridChar &gridChar, vector<D
     vcfFile.close();
     // do the Nis again; filter max missing
 
-    for (int i = 0; i < gridChar.numGrids; i++)
+    for (int i = 0; i < gridChar.totalCells; i++)
     {   
         if (divs[i].N < 8)
             continue;
@@ -328,7 +328,7 @@ void read_poplars_haplotype(string variantfilename, GridChar &gridChar, vector<D
         // }
     }
 
-    for (int i = 0; i < gridChar.numGrids; i++)
+    for (int i = 0; i < gridChar.totalCells; i++)
     {   
         divs[i].haplotype_map.clear();
     }
@@ -459,7 +459,7 @@ void read012(string geofilename, string variantfilename, GridChar &gridChar, vec
     geoFile.close();
     // do the Nis again; filter max missing
 
-    for (int i = 0; i < gridChar.numGrids; i++)
+    for (int i = 0; i < gridChar.totalCells; i++)
     {
         if (divs[i].N < 5)
         {
@@ -650,6 +650,58 @@ void readVCF(string filename,vector<int>& Nis)
         Nis.push_back(it->second);
     }
  
+
+    fin.close();
+}
+
+// Input: a tab-separated file with no header
+// Columns:
+// col 0: id
+// col 1: x
+// col 2: y
+// col 3: allele (must be '0', '1', or '2')
+void readTableFormat(string filename, vector<int>& Nis)
+{
+    map<string, int> Nis_map;
+    ifstream fin(filename.c_str());
+
+    if (!fin.is_open()) {
+        cerr << "ERROR: Failed to open " << filename << " for reading.\n";
+        throw 0;
+    }
+
+    string line;
+    int nrows = 0;
+
+    while (getline(fin, line)) {
+        nrows++;
+
+        istringstream iss(line);
+        string id, x_str, y_str, allele;
+
+        // Read 4 tab-separated columns
+        if (!(getline(iss, id, '\t') &&
+              getline(iss, x_str, '\t') &&
+              getline(iss, y_str, '\t') &&
+              getline(iss, allele, '\t'))) {
+            cerr << "WARNING: Skipping malformed line " << nrows << ": " << line << endl;
+            continue;
+        }
+
+        // Validate allele value
+        if (allele != "0" && allele != "1" && allele != "2") {
+            cerr << "WARNING: Invalid allele value '" << allele << "' on line " << nrows << endl;
+            continue;
+        }
+
+        // Count frequency of each allele
+        Nis_map[allele]++;
+    }
+
+    // Transfer to output vector
+    for (map<string, int>::iterator it = Nis_map.begin(); it != Nis_map.end(); ++it) {
+        Nis.push_back(it->second);
+    }
 
     fin.close();
 }

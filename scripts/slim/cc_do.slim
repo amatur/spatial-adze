@@ -1,0 +1,411 @@
+// early() → happens at the start of a generation
+
+// late() → happens at the end of a generation
+
+// first() → happens only the first generation
+// 1: early()	Set up population structure, assign variables.
+// 1: late()	Kill parents (remove old generation).
+// 2: late()	Disperse individuals, enforce carrying capacity.
+// 3: late()	Save output, report statistics.
+
+// In generation 1:
+
+// 1: first() → if exists
+
+// 2: first() → if exists
+
+// 1: early()
+
+// 2: early()
+
+// reproduction()
+
+// 1: late()
+
+// 2: late()
+
+
+initialize() {
+    // Configuration parameters
+	defineCfgParam("DISPERSAL_DISTANCE", 0.02); // Mating distance & dispersal scale //0.015)//0.015
+	defineCfgParam("MAX_GEN", 100000); //5000000
+	defineCfgParam("GENOME_LENGTH", 1e7);
+	defineCfgParam("OUT_PREFIX", "out/neutral");
+
+	// Constants for simulation
+	defineConstant("DOMINANCE", 0.5);
+	defineConstant("SELECTION", 0);
+	defineConstant("SIMULATION_AREA", 1);
+	defineConstant("POPULATION_SIZE", 10000);
+	defineConstant("GRID_SIDE_LENGTH", SIMULATION_AREA/sqrt(POPULATION_SIZE));
+    // defineConstant("PI", 3.141592653589793);
+
+	defineConstant("MUTATION_RATE", 0);
+	defineConstant("RECOMB_RATE", 1e-8);
+	
+	initializeSLiMModelType("nonWF");
+	initializeSLiMOptions(dimensionality="xy", periodicity="xy");
+	initializeTreeSeq();
+
+	initializeMutationType("m1", DOMINANCE, "f", SELECTION);
+	//m1.convertToSubstitution = T;
+
+
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, GENOME_LENGTH - 1);
+	initializeMutationRate(MUTATION_RATE);
+	initializeRecombinationRate(RECOMB_RATE);
+	
+    //just one tyoe defined: spatial mate choice
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=DISPERSAL_DISTANCE);
+// Define a single InteractionType object (ID = 1)
+// Purpose: spatial mate choice — individuals will only mate with nearby individuals
+// This creates a spatial index used to efficiently find neighbors for mating
+
+// initializeInteractionType(
+// 	1,               // This is the ID of the interaction (we'll refer to this as i1 later)
+// 	"xy",            // This means the interaction is defined in 2D space (x,y coordinates)
+// 	reciprocal=T,    // Interactions are symmetric — if A is within distance of B, then B is within distance of A
+// 	maxDistance=DISPERSAL_DISTANCE  // Only individuals within this distance can interact (be chosen as mates)
+// );
+
+	defineConstant("K", 300);   // carrying-capacity density
+	defineConstant("S", 0.1);   // SIGMA_S, the spatial interaction width
+	
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=DISPERSAL_DISTANCE*3);
+// i2.setInteractionFunction("n", 1.0, DISPERSAL_DISTANCE*3);
+
+    // 	// spatial competition
+	// initializeInteractionType(1, "xy", reciprocal=T, maxDistance=S * 3);
+	// i1.setInteractionFunction("n", 1.0, S);
+	
+	// // spatial mate choice
+	// initializeInteractionType(2, "xy", reciprocal=T, maxDistance=0.1);
+
+}
+
+// // Define spatially varying carrying capacity
+// function (integer) carryingCapacity(float x, float y) {
+//     // return K;
+//     // return 100000000; 
+
+//     AMPLITUDE = 20.0; // it was 50
+//     baseK = 100;
+//     fluctuation = AMPLITUDE * sin(2*PI*x) * cos(2*PI*y);
+//     Kk = baseK + fluctuation;
+//     return asInteger(max(AMPLITUDE, Kk)); // Never let K(x, y) drop below 20
+// 	// Example: Sinusoidal variation over space
+// 	// return asInteger(100 + 50 * sin(2*PI*x) * cos(2*PI*y));//This creates regions where K(x, y) might drop very low — especially if sin() or cos() are negative → leading to sparse areas → low-density mating failures.
+
+
+// }
+
+
+function (integer) carryingCapacity(float x, float y) {
+	// defineConstant("NUM_CLUSTERS", 10);
+	NUM_CLUSTERS=10;
+	cluster_x = runif(NUM_CLUSTERS, 0, 1);
+	cluster_y = runif(NUM_CLUSTERS, 0, 1);
+    baseK = 10;
+    peakK = 100;
+    SD = 0.01;  // Smaller SD = tighter clusters
+
+    Kk = baseK;
+
+    for (c in 0:(NUM_CLUSTERS-1)) {
+        d = sqrt((x-cluster_x[c])^2 + (y-cluster_y[c])^2);
+        Kk = Kk + peakK * exp(-0.5 * (d / SD)^2);
+    }
+
+
+
+    baseK = 10;        // Lower background density
+    AMPLITUDE = 100.0; // Stronger peaks
+    FREQUENCY = 8.0;   // More clusters across space
+
+
+    fluctuation = AMPLITUDE * sin(FREQUENCY*PI*x) * cos(FREQUENCY*PI*y);
+    
+    Kk = baseK + fluctuation;
+
+
+    return asInteger(max(5.0, Kk));
+}
+
+function (integer) carryingCapacityCC(float x, float y) {
+    
+    baseK = 700;        // Lower background density
+    AMPLITUDE = 100.0; // Stronger peaks
+    FREQUENCY = 8.0;   // More clusters across space
+
+
+	 baseK = 5;        // Lower background density
+    AMPLITUDE = 2.0; // Stronger peaks
+    FREQUENCY = 8.0;   // More clusters across space
+
+    fluctuation = AMPLITUDE * sin(FREQUENCY*PI*x) * cos(FREQUENCY*PI*y);
+    
+    Kk = baseK + fluctuation;
+
+
+
+    return asInteger(max(1.0, Kk)); // Prevent density dropping too low
+}
+
+function (void) defineCfgParam(string$ name, lifs value) {
+    if (!exists(name))
+        defineConstant(name, value);
+}
+
+
+2: first() {
+    // look for mates
+	i1.evaluate(p1);
+}
+
+
+// Initial population setup
+1 early() {
+    //"Place exactly 1 individual into every small cell of the grid (defined by GRID_SIDE_LENGTH), with a little bit of randomness inside that cell."
+
+    //Every small cell of size GRID_SIDE_LENGTH x GRID_SIDE_LENGTH has at least 1 individual.
+
+	// Add a subpopulation named "p1" with initial size POPULATION_SIZE
+	// Note: This creates empty individuals without any spatial positions yet.
+	sim.addSubpop("p1", POPULATION_SIZE);
+
+	// Define the spatial bounds of the population
+	// Here we are simulating in a 2D square area of size 1x1 units (or sqrt(SIMULATION_AREA) x sqrt(SIMULATION_AREA))
+	p1.setSpatialBounds(c(0, 0, sqrt(SIMULATION_AREA), sqrt(SIMULATION_AREA)));
+
+	// Generate spatial positions for individuals to initialize them on a grid
+	// This helps avoid clumping at the start and distributes individuals uniformly
+
+	pos = c();  // Initialize an empty vector to store x and y coordinates of all individuals
+
+	// Loop over the x-axis grid cells
+	for (i in 0:(sqrt(POPULATION_SIZE) - 1)) {
+
+		// Loop over the y-axis grid cells
+		for (j in 0:(sqrt(POPULATION_SIZE) - 1)) {
+
+			// Generate a random x-coordinate within the (i-th) grid cell
+			pos = c(pos, runif(1, (i*GRID_SIDE_LENGTH), ((i+1)*GRID_SIDE_LENGTH)));
+
+			// Generate a random y-coordinate within the (j-th) grid cell
+			pos = c(pos, runif(1, (j*GRID_SIDE_LENGTH), ((j+1)*GRID_SIDE_LENGTH)));
+		}
+	}
+
+	// Assign the generated positions to all individuals in p1
+	p1.individuals.setSpatialPosition(pos);
+
+
+
+	// i1.evaluate(p1); // Necessary before nearestNeighbors()
+
+	// for (ind in p1.individuals) {
+	// 	pos = ind.spatialPosition;
+	// 	//local_inds = p1.individuals.withinDistance(pos, DISPERSAL_DISTANCE);
+    //     // local_inds = i1.individualsWithinDistance(pos);
+    //     //local_inds = i1.nearestIndividuals(pos, DISPERSAL_DISTANCE);
+    //     local_inds = i1.nearestNeighbors(ind, POPULATION_SIZE); // Correct usage
+		
+	// 	local_K = carryingCapacity(pos[0], pos[1]);
+
+	// 	catn(size(local_inds)+" "+local_K);
+	// 	if (size(local_inds) > local_K) {
+	// 		ind.fitnessScaling = 0.0; // Mark for death
+	// 	} 
+	// }
+	
+
+
+
+
+ // Calculate local density using i2
+    i2.evaluate(p1);
+    i1.evaluate(p1);
+
+// catn("Max distance: " + asString(i1.maxDistance));
+//     for (ind in p1.individuals) {
+// 		pos = ind.spatialPosition;
+		
+// 		local_inds = i2.nearestNeighborsOfPoint(pos, p1, POPULATION_SIZE);
+
+// //local_inds = i2.nearestNeighbors(ind, p1.individualCount);
+//         local_density = size(local_inds);
+
+// 		//  = i2.nearestNeighbors(pos, DISPERSAL_DISTANCE);
+//         //local_density = i2.totalOfNeighborStrengths(ind);
+//         local_K = carryingCapacity(ind.spatialPosition[0], ind.spatialPosition[1]);
+
+// 		catn(size(local_density)+" "+local_K+" "+local_K / local_density);
+//         if (local_density > local_K) {
+//             ind.fitnessScaling = local_K / local_density;
+//         } else {
+//             ind.fitnessScaling = 1.0;
+//         }
+//     }
+// 	i2.evaluate(p1);
+// 	i1.evaluate(p1);
+
+
+
+
+
+	// Reschedule the script block named 's1' (usually the simulation end block)
+	// This allows dynamic setting of MAX_GEN to control the ending generation
+	community.rescheduleScriptBlock(s1, MAX_GEN, MAX_GEN);
+
+	// Remember all current individuals for tree-sequence recording
+	// This ensures that the ancestry of all these individuals is tracked in the .trees output
+	sim.treeSeqRememberIndividuals(p1.individuals);
+}
+
+2: early() {
+	// Kill parents (non-overlapping generations)
+	// sim.killIndividuals(p1.individuals[p1.individuals.age > 0]);
+
+	inds = p1.individuals;
+	sim.killIndividuals(inds[inds.age > 0]);
+	i1.evaluate(p1);
+}
+
+
+// Reproduction with local mating
+// reproduction() {
+
+// 	for (ind in p1.individuals) {
+// 		pos = ind.spatialPosition;
+// 		neighbors = i1.nearestNeighbors(ind, 2); // Need at least 2 parents
+//         catn("Population size: " + p1.individualCount);
+// 		if (size(neighbors) < 2) {
+// 			stop("Error: Not enough neighbors for mating.");
+//             //cat("Error: Not enough neighbors for mating.");
+//             //continue;
+//             //self.active = 0;  // Don't do anything this generation
+//             return;
+// 		}
+// 		parents = sample(neighbors, 2);
+// 		offspring = p1.addCrossed(parents[0], parents[1]);
+// 		offspring.setSpatialPosition(pos); // Offspring initially at parent's location
+// 	}
+// 	self.active = 0;
+// }
+
+reproduction() {
+	for (i in 0:(sqrt(POPULATION_SIZE) - 1)) { // x axis
+		for (j in 0:(sqrt(POPULATION_SIZE) - 1)) { // y axis
+			current_offspring_x = runif(1, (i*GRID_SIDE_LENGTH), ((i+1)*GRID_SIDE_LENGTH));
+			current_offspring_y = runif(1, (j*GRID_SIDE_LENGTH), ((j+1)*GRID_SIDE_LENGTH));
+			current_offspring_pos = c(current_offspring_x, current_offspring_y);
+			potential_parents = i1.nearestNeighborsOfPoint(current_offspring_pos, p1, POPULATION_SIZE);
+			if(size(potential_parents) < 2) {
+				next;
+				generation =  asInteger(community.tick - (community.tick % asInteger(MAX_GEN/10)));
+				if(generation == 0) {
+					stop("Error, only " + asString(size(potential_parents)) + " parent(s) in vicinity\nrestart");
+				} else { 
+					stop("Error, only " + asString(size(potential_parents)) + " parent(s) in vicinity\n" + OUT_PREFIX + "_" + generation + ".trees");
+				}
+			}
+			parents = sample(potential_parents, 2);
+			offspring = p1.addCrossed(parents[0], parents[1]);
+			offspring.setSpatialPosition(current_offspring_pos);
+			//offspring.metadata = {"x" : offspring.spatialPosition[0], "y" : offspring.spatialPosition[1]};
+		}	
+	}
+	self.active = 0; // callback only called once in a tick, see section 16.3
+
+
+}
+
+
+// Population regulation by local K
+1: late() {
+	//let them move
+	// 	for (ind in p1.individuals) {
+	// 	dx = rnorm(1, 0, DISPERSAL_DISTANCE / 2);  // Smaller SD
+	// 	dy = rnorm(1, 0, DISPERSAL_DISTANCE / 2);
+	// 	new_x = ind.spatialPosition[0] + dx;
+	// 	new_y = ind.spatialPosition[1] + dy;
+	// 	ind.setSpatialPosition(c(new_x, new_y));
+	// }
+	i1.evaluate(p1);
+    	// Evaluate again in case positions changed
+	// i1.evaluate(p1); // Necessary before nearestNeighbors()
+
+	for (ind in p1.individuals) {
+		pos = ind.spatialPosition;
+		//local_inds = p1.individuals.withinDistance(pos, DISPERSAL_DISTANCE);
+        // local_inds = i1.individualsWithinDistance(pos);
+        //local_inds = i1.nearestIndividuals(pos, DISPERSAL_DISTANCE);
+        local_inds = i1.nearestNeighbors(ind, POPULATION_SIZE); // Correct usage
+		
+		local_K = carryingCapacity(pos[0], pos[1]);
+
+		//catn(size(local_inds)+" "+local_K);
+		if (size(local_inds) > local_K) {
+			ind.fitnessScaling = 0.0; // Mark for death
+		} 
+	}
+	
+
+    	// move around a bit
+	// for (ind in p1.individuals)
+	// {
+	// 	do newPos = ind.spatialPosition + runif(2, -0.01, 0.01);
+	// 	while (!p1.pointInBounds(newPos));
+	// 	ind.setSpatialPosition(newPos);
+	// }
+
+	// Random dispersal after reproduction
+	// for (ind in p1.individuals) {
+	// 	angle = runif(1, 0, 2*PI);
+	// 	dist = rexp(1, 1.0/DISPERSAL_DISTANCE);
+	// 	newPos = ind.spatialPosition + c(dist*cos(angle), dist*sin(angle));
+		
+	// 	// Enforce boundaries
+	// 	newPos[0] = max(0.0, min(1.0, newPos[0]));
+	// 	newPos[1] = max(0.0, min(1.0, newPos[1]));
+	// 	ind.setSpatialPosition(newPos);
+	// }
+}
+
+// Periodically save outputs
+2: late() {
+	DIVISOR = 100000;
+	DIVISOR=10;
+
+    DIVISOR = MAX_GEN/10;
+	if(community.tick % DIVISOR == 0 |  community.tick == MAX_GEN) {
+		catn("saving .trees file... " + community.tick);
+		sim.treeSeqOutput(OUT_PREFIX + "_" + community.tick + ".trees");
+		p1.outputVCFSample(10000, filePath=OUT_PREFIX + "_" + community.tick + ".vcf");
+		coords_file = OUT_PREFIX+"_" + community.tick + ".coordinates.txt";
+		for (ind in p1.individuals) {
+			line = paste(ind.index, ind.spatialPosition[0], ind.spatialPosition[1], sep=' ');
+			writeFile(coords_file, line, append=T);
+		}
+	}
+}
+
+s1 100000000 late() {
+	sim.simulationFinished();
+}
+
+
+// late()
+// {
+// 	// move around a bit
+// 	for (ind in p1.individuals)
+// 	{
+// 		do newPos = ind.spatialPosition + runif(2, -0.01, 0.01);
+// 		while (!p1.pointInBounds(newPos));
+// 		ind.setSpatialPosition(newPos);
+// 	}
+// }
+// 10000 late() {
+// 	sim.outputFixedMutations();
+// }
